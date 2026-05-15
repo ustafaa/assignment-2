@@ -28,10 +28,12 @@ models:
     hf_id: "vidore/colpali-v1.3"
     index_path: "data/sample/colpali_index"
     report_image_size: [1024, 1280]   # width, height for rendered report PNGs
-    # bf16 (not 4-bit): bnb 4-bit quantization with PaliGemma + LoRA on
-    # transformers 5.x raises "FP4 quantization state not initialized" at
-    # forward time. bf16 fits alongside MedGemma 4-bit on T4 (15 GB total).
-    load_in_4bit: false
+    # 4-bit: bf16 (5.4 GB) does NOT fit alongside MedGemma 4-bit + KV cache
+    # on a T4 (~8.6 GB resident after one generate call). 4-bit ColPali is ~2 GB.
+    # The earlier FP4-init bug was specific to colpali-v1.3-hf + transformers
+    # native loading; via colpali-engine-from-source + v1.3 adapter checkpoint
+    # the 4-bit path works correctly.
+    load_in_4bit: true
   clip:
     # Use the -quickgelu variant so activation matches OpenAI's pretrained weights.
     model_name: "ViT-B-32-quickgelu"
