@@ -50,8 +50,11 @@ QA_PROMPT_TEMPLATE = (
     "From the radiology report below, generate exactly 3 clinical question-answer pairs. "
     "Mix question types: one yes/no (finding presence), one open-ended (description), "
     "one location/laterality. "
+    # Strong "no thinking, no prose" guidance; MedGemma-1.5 still tries to emit
+    # <unused94>thought blocks - the parser handles that defensively.
+    "Respond with ONLY the JSON array, on a single line, no preamble, no markdown fences, no explanation. "
     # Double braces -> literal '{' '}' after .format(), so MedGemma sees real JSON.
-    'Output strict JSON: [{{"q": ..., "a": ...}}, ...]. '
+    'Format: [{{"q": "...", "a": "..."}}, {{"q": "...", "a": "..."}}, {{"q": "...", "a": "..."}}] '
     "Report: {report}"
 )
 
@@ -62,31 +65,26 @@ def _load_config() -> dict:
 
 
 _FENCE_RE = re.compile(r"^```(?:json)?\s*|```\s*$", re.MULTILINE)
-_ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
+_DECODER = json.JSONDecoder()
 
 
 def _extract_json_array(text: str) -> list | None:
-    """Pull a JSON list out of an LLM response, handling fences and prose."""
-    cleaned = _FENCE_RE.sub("", text).strip()
+    """Find the first valid JSON array anywhere in the text.
 
-    # Try direct parse first.
-    try:
-        v = json.loads(cleaned)
-        if isinstance(v, list):
-            return v
-    except json.JSONDecodeError:
-        pass
-
-    # Greedy bracket match - covers cases like "Here's the JSON: [...]"
-    m = _ARRAY_RE.search(cleaned)
-    if m:
+    Robust to markdown fences, MedGemma-1.5 <unused94>thought preambles, and
+    trailing prose. Scans every '[' and attempts raw_decode forward; returns
+    the first one that parses cleanly to a list.
+    """
+    cleaned = _FENCE_RE.sub("", text)
+    for i, ch in enumerate(cleaned):
+        if ch != "[":
+            continue
         try:
-            v = json.loads(m.group(0))
-            if isinstance(v, list):
-                return v
+            obj, _ = _DECODER.raw_decode(cleaned, i)
         except json.JSONDecodeError:
-            pass
-
+            continue
+        if isinstance(obj, list):
+            return obj
     return None
 
 
@@ -146,33 +144,41 @@ def main() -> None:
     results: list[dict] = []
     fail_unparseable = 0
     fail_generate = 0
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    for _, row in tqdm(df_sample.iterrows(), total=len(df_sample), desc="generating QA"):
-        prompt = QA_PROMPT_TEMPLATE.format(report=row["report"])
+    def _flush():
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=2, ensure_ascii=False)
+
+    for i, row in enumerate(tqdm(df_sample.itertuples(index=False), total=len(df_sample), desc="generating QA")):
+        prompt = QA_PROMPT_TEMPLATE.format(report=row.report)
         try:
-            response = medgemma.generate(None, prompt, max_new_tokens=512)
+            # 1024 tokens: room for MedGemma-1.5's thought preamble PLUS the JSON tail.
+            response = medgemma.generate(None, prompt, max_new_tokens=1024)
         except Exception as e:
-            log.warning("MedGemma error on %s: %s", row["id"], e)
+            log.warning("MedGemma error on %s: %s", row.id, e)
             fail_generate += 1
             continue
 
         raw_parsed = _extract_json_array(response)
         validated = _validate_qa_pairs(raw_parsed) if raw_parsed is not None else None
         if validated is None:
-            log.warning("Unparseable QA for %s; raw[:200]=%r", row["id"], response[:200])
+            log.warning("Unparseable QA for %s; raw[:200]=%r", row.id, response[:200])
             fail_unparseable += 1
             continue
 
         results.append({
-            "report_id": str(row["id"]),
-            "image_path": str(row["image_path"]),
-            "report": str(row["report"]),
+            "report_id": str(row.id),
+            "image_path": str(row.image_path),
+            "report": str(row.report),
             "qa_pairs": validated,
         })
+        # Incremental flush every 5 entries so a Colab disconnect doesn't nuke
+        # an hour of model output.
+        if (i + 1) % 5 == 0:
+            _flush()
 
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2, ensure_ascii=False)
+    _flush()
 
     log.info("Summary:")
     log.info("  rows requested      : %d", len(df_sample))
