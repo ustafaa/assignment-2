@@ -95,25 +95,27 @@ def _ensure_loaded():
 
 
 def generate(
-    image: Image.Image,
+    image: Optional[Image.Image],
     prompt: str,
     max_new_tokens: Optional[int] = None,
 ) -> str:
-    """Run one image+text turn through MedGemma. Returns the decoded reply."""
+    """Run one turn through MedGemma. image=None gives a text-only request.
+
+    Returns the decoded reply (after the input tokens are sliced off).
+    """
     model, processor = _ensure_loaded()
 
     if max_new_tokens is None:
         max_new_tokens = _load_config()["models"]["medgemma"].get("max_new_tokens", 512)
 
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "image", "image": image},
-                {"type": "text", "text": prompt},
-            ],
-        }
-    ]
+    if image is None:
+        content = [{"type": "text", "text": prompt}]
+    else:
+        content = [
+            {"type": "image", "image": image},
+            {"type": "text", "text": prompt},
+        ]
+    messages = [{"role": "user", "content": content}]
 
     inputs = processor.apply_chat_template(
         messages,
