@@ -270,6 +270,9 @@ def main() -> None:
                     help="run parsing + filtering + view-pick, print funnel, and exit (no copying)")
     ap.add_argument("--n", type=int, default=None,
                     help="override total sample size (split rescaled proportionally)")
+    ap.add_argument("--dataset-path", type=str, default=None, dest="dataset_path",
+                    help="skip kagglehub download; use this local path as the dataset root "
+                         "(e.g. a Google Drive mount that already contains the extracted dataset)")
     args = ap.parse_args()
 
     cfg = load_config()
@@ -288,15 +291,23 @@ def main() -> None:
     sample_dir.mkdir(parents=True, exist_ok=True)
     images_dir.mkdir(parents=True, exist_ok=True)
 
-    try:
-        import kagglehub
-    except ImportError:
-        log.error("kagglehub not installed - run `pip install -r requirements.txt`")
-        sys.exit(1)
+    if args.dataset_path:
+        # Skip kagglehub: use a pre-extracted copy on disk (e.g. mounted Drive).
+        dataset_path = Path(args.dataset_path).expanduser().resolve()
+        if not dataset_path.is_dir():
+            log.error("--dataset-path is not a directory: %s", dataset_path)
+            sys.exit(1)
+        log.info("using local dataset path: %s", dataset_path)
+    else:
+        try:
+            import kagglehub
+        except ImportError:
+            log.error("kagglehub not installed - run `pip install -r requirements.txt`")
+            sys.exit(1)
 
-    log.info("kagglehub: downloading %s", dc["kaggle_slug"])
-    dataset_path = Path(kagglehub.dataset_download(dc["kaggle_slug"]))
-    log.info("kagglehub: dataset_path = %s", dataset_path)
+        log.info("kagglehub: downloading %s", dc["kaggle_slug"])
+        dataset_path = Path(kagglehub.dataset_download(dc["kaggle_slug"]))
+        log.info("kagglehub: dataset_path = %s", dataset_path)
 
     if args.inspect:
         inspect_dataset(dataset_path)

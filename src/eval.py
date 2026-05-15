@@ -52,13 +52,16 @@ log = logging.getLogger("eval")
 
 
 JUDGE_PROMPT = (
-    "You are evaluating an AI's answer against a gold reference for a chest X-ray "
-    "question. Reply with EXACTLY ONE WORD: correct, partial, or wrong. "
-    "No thinking, no explanation, no preamble.\n\n"
+    "Score a predicted answer against the gold answer for a chest X-ray question.\n\n"
+    "Scoring rubric:\n"
+    "  1 = correct  (matches the gold answer's meaning)\n"
+    "  2 = partial  (partially matches or hedges)\n"
+    "  3 = wrong    (contradicts the gold answer or is unrelated)\n\n"
     "Question: {question}\n"
-    "Predicted answer: {predicted}\n"
-    "Gold answer: {gold}\n"
-    "Verdict:"
+    "Predicted: {predicted}\n"
+    "Gold: {gold}\n\n"
+    "Output your verdict on a single line in EXACTLY this format:\n"
+    "VERDICT: <digit 1, 2, or 3>"
 )
 
 
@@ -73,14 +76,24 @@ def _now_iso() -> str:
 
 # ----------------------------- Judge parsing ------------------------------ #
 
-_VERDICT_RE = re.compile(r"\b(correct|partial|wrong)\b", re.IGNORECASE)
+_VERDICT_LINE_RE = re.compile(r"VERDICT:\s*([123])", re.IGNORECASE)
+_VERDICT_WORD_RE = re.compile(r"\b(correct|partial|wrong)\b", re.IGNORECASE)
+_DIGIT_TO_VERDICT = {"1": "correct", "2": "partial", "3": "wrong"}
 
 
 def _parse_verdict(raw: str) -> str:
-    m = _VERDICT_RE.search(raw)
-    if not m:
-        return "unparseable"
-    return m.group(1).lower()
+    """Robust verdict extraction:
+       1) primary: an explicit `VERDICT: <1|2|3>` line
+       2) fallback: the LAST correct/partial/wrong word in the output
+          (handles thinking-mode preambles that conclude with the verdict word)
+    """
+    m = _VERDICT_LINE_RE.search(raw)
+    if m:
+        return _DIGIT_TO_VERDICT[m.group(1)]
+    words = _VERDICT_WORD_RE.findall(raw)
+    if words:
+        return words[-1].lower()
+    return "unparseable"
 
 
 # ---------------------------- Report scoring ------------------------------ #
@@ -235,7 +248,9 @@ def _judge_qa(qa_items: list[dict], save_path: Path) -> list[dict]:
                 continue
             prompt = JUDGE_PROMPT.format(question=q, predicted=m["answer"], gold=gold)
             try:
-                raw = medgemma.generate(None, prompt, max_new_tokens=20)
+                # 128 tokens: room for MedGemma thinking-mode preamble + VERDICT line.
+                # Short anyway; doesn't materially change total judge runtime.
+                raw = medgemma.generate(None, prompt, max_new_tokens=128)
             except Exception as e:
                 m["judge"] = {"error": str(e)}
                 continue
