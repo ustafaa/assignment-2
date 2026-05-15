@@ -23,9 +23,10 @@ models:
     max_new_tokens: 512
     temperature: 0.2
   colpali:
-    # LoRA-adapter checkpoint loaded via colpali-engine (installed from GitHub
-    # source). The -hf variant is broken on transformers >=4.52 per maintainer.
-    hf_id: "vidore/colpali-v1.3"
+    # -merged variant: same v1.3 trained weights but LoRA pre-merged into the
+    # base model. No PEFT adapter loading -> no LoRA-key remap problems on
+    # transformers 4.52+. Plain from_pretrained loads cleanly.
+    hf_id: "vidore/colpali-v1.3-merged"
     index_path: "data/sample/colpali_index"
     report_image_size: [1024, 1280]   # width, height for rendered report PNGs
     # 4-bit: bf16 (5.4 GB) does NOT fit alongside MedGemma 4-bit + KV cache
