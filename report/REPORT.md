@@ -112,11 +112,11 @@ The same `MedGemma` singleton serves three jobs (report generation, RAG answerin
 
 ## 5. Evaluation methodology
 
-### Report mode (n=100 test images)
+### Report mode (n=30 test images)
 - **ROUGE-L F1** (per-pair, then mean) via `rouge_score`.
 - **BERTScore F1** (vectorized over all pairs) via `bert_score`, `lang="en"` (RoBERTa-large encoder).
 
-### QA RAG mode (n=50 questions, drawn from `qa_dataset.json`)
+### QA RAG mode (n=15 questions, drawn from `qa_dataset.json`)
 - **Recall@3**: fraction of questions where the gold patient's report appears among the top-3 retrieved IDs.
 - **LLM-as-judge**: for each (question, predicted answer, gold answer) triple, MedGemma is asked to emit `VERDICT: <1|2|3>` (1=correct / 2=partial / 3=wrong). Parser uses the explicit `VERDICT:` regex with a last-word fallback to handle thinking-mode preambles. **Judge accuracy** = correct / n.
 
@@ -130,14 +130,14 @@ The same `MedGemma` singleton serves three jobs (report generation, RAG answerin
 
 _Numbers below come from `results/comparison.json` (populated by `python -m src.eval`)._
 
-### Report Generation (n=100)
+### Report Generation (n=30)
 
 | Model | ROUGE-L F1 | BERTScore F1 | Latency mean (s) |
 |---|---:|---:|---:|
 | MedGemma 1.5-4B | _<from comparison.md>_ | _<from comparison.md>_ | _<from comparison.md>_ |
 | OpenCLIP retrieval | _<from comparison.md>_ | _<from comparison.md>_ | _<from comparison.md>_ |
 
-### QA RAG (n=50)
+### QA RAG (n=15)
 
 | Retriever | Recall@3 | Judge accuracy | correct | partial | wrong | unparseable+err | latency mean (s) |
 |---|---:|---:|---:|---:|---:|---:|---:|

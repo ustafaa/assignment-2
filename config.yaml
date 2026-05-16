@@ -56,8 +56,11 @@ qa_generation:
 
 # ---------- Evaluation ----------
 eval:
-  report_test_n: 100         # full test split for ROUGE / BERTScore
-  qa_test_n: 50              # QA items to score (judge cost control)
+  # Sized so a full `python -m src.eval` lands in ~20 min on a Colab T4:
+  # 30 report imgs * ~9 s + 15 questions * ~30 s + 30 judge * ~3 s + overhead.
+  # Override via --limit-report / --limit-qa CLI flags when needed.
+  report_test_n: 30
+  qa_test_n: 15
   bertscore_lang: "en"
   results_dir: "results"
   comparison_json: "results/comparison.json"

@@ -101,20 +101,25 @@ python app/app.py
 
 ## Results
 
-_Filled in Phase 7 from `results/comparison.json`._
+_Latest numbers are auto-written to `results/comparison.md` by `python -m src.eval`.
+Paste that file's tables here after running the full eval. The template below
+matches the eval harness output format._
 
-| Mode            | Model                | Metric        | Score |
-|-----------------|----------------------|---------------|-------|
-| Report          | MedGemma-1.5-4B      | ROUGE-L       | TBD   |
-| Report          | MedGemma-1.5-4B      | BERTScore F1  | TBD   |
-| Report          | CLIP retrieval       | ROUGE-L       | TBD   |
-| Report          | CLIP retrieval       | BERTScore F1  | TBD   |
-| QA Retrieval    | ColPali v1.3         | Recall@3      | TBD   |
-| QA Retrieval    | MiniLM text          | Recall@3      | TBD   |
-| QA Answer       | MedGemma + ColPali   | Judge correct | TBD   |
-| QA Answer       | MedGemma + MiniLM    | Judge correct | TBD   |
+### Report Generation (n=30)
 
-See `report/REPORT.md` for full discussion.
+| Model | ROUGE-L F1 | BERTScore F1 | Latency mean (s) |
+|---|---:|---:|---:|
+| MedGemma 1.5-4B | _from comparison.md_ | _from comparison.md_ | _from comparison.md_ |
+| OpenCLIP retrieval | _from comparison.md_ | _from comparison.md_ | _from comparison.md_ |
+
+### QA RAG (n=15)
+
+| Retriever | Recall@3 | Judge accuracy | correct | partial | wrong | unparseable+err | latency mean (s) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| ColPali v1.3 | _…_ | _…_ | _…_ | _…_ | _…_ | _…_ | _…_ |
+| MiniLM-L6 text | _…_ | _…_ | _…_ | _…_ | _…_ | _…_ | _…_ |
+
+See `report/REPORT.md` for methodology + qualitative observations + limitations.
 
 ---
 
