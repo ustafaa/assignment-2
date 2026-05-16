@@ -101,25 +101,21 @@ python app/app.py
 
 ## Results
 
-_Latest numbers are auto-written to `results/comparison.md` by `python -m src.eval`.
-Paste that file's tables here after running the full eval. The template below
-matches the eval harness output format._
-
 ### Report Generation (n=30)
 
 | Model | ROUGE-L F1 | BERTScore F1 | Latency mean (s) |
 |---|---:|---:|---:|
-| MedGemma 1.5-4B | _from comparison.md_ | _from comparison.md_ | _from comparison.md_ |
-| OpenCLIP retrieval | _from comparison.md_ | _from comparison.md_ | _from comparison.md_ |
+| MedGemma 1.5-4B | **0.347** | **0.890** | 10.90 |
+| OpenCLIP retrieval | 0.283 | 0.887 | **0.33** |
 
 ### QA RAG (n=15)
 
 | Retriever | Recall@3 | Judge accuracy | correct | partial | wrong | unparseable+err | latency mean (s) |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| ColPali v1.3 | _…_ | _…_ | _…_ | _…_ | _…_ | _…_ | _…_ |
-| MiniLM-L6 text | _…_ | _…_ | _…_ | _…_ | _…_ | _…_ | _…_ |
+| ColPali v1.3 | 0.000 | 0.400 | 6 | **3** | 5 | 1 | 70.17 |
+| MiniLM-L6 text | **0.133** | **0.467** | **7** | 1 | 7 | 0 | **11.01** |
 
-See `report/REPORT.md` for methodology + qualitative observations + limitations.
+Headlines: MedGemma beats CLIP retrieval by +23% on ROUGE-L for report generation. MiniLM-L6 narrowly beats ColPali v1.3 on Recall@3, strict-correct judge accuracy, and latency (6.4× faster). See `report/REPORT.md` for methodology, qualitative observations, and limitations.
 
 ---
 

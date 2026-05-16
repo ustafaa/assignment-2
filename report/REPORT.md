@@ -134,21 +134,26 @@ _Numbers below come from `results/comparison.json` (populated by `python -m src.
 
 | Model | ROUGE-L F1 | BERTScore F1 | Latency mean (s) |
 |---|---:|---:|---:|
-| MedGemma 1.5-4B | _<from comparison.md>_ | _<from comparison.md>_ | _<from comparison.md>_ |
-| OpenCLIP retrieval | _<from comparison.md>_ | _<from comparison.md>_ | _<from comparison.md>_ |
+| MedGemma 1.5-4B | **0.347** | **0.890** | 10.90 |
+| OpenCLIP retrieval | 0.283 | 0.887 | **0.33** |
+
+**MedGemma wins both quality metrics**: +23% relative ROUGE-L F1 over the retrieval baseline, with essentially identical BERTScore F1 (both ~0.89). The BERTScore tie is expected — chest-X-ray reports share a tight medical vocabulary, so the contextual-embedding metric saturates for any plausible output. ROUGE-L's n-gram overlap is the more discriminating signal here. CLIP retrieval is **33× faster** per image, but the quality gap justifies MedGemma in this setting.
 
 ### QA RAG (n=15)
 
 | Retriever | Recall@3 | Judge accuracy | correct | partial | wrong | unparseable+err | latency mean (s) |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| ColPali v1.3 | _<…>_ | _<…>_ | _<…>_ | _<…>_ | _<…>_ | _<…>_ | _<…>_ |
-| MiniLM-L6 text | _<…>_ | _<…>_ | _<…>_ | _<…>_ | _<…>_ | _<…>_ | _<…>_ |
+| ColPali v1.3 | 0.000 | 0.400 | 6 | **3** | 5 | 1 | 70.17 |
+| MiniLM-L6 text | **0.133** | **0.467** | **7** | 1 | 7 | 0 | **11.01** |
 
-### Qualitative observations from the smoke run (n=5)
-- MedGemma's reports follow the requested `FINDINGS: … IMPRESSION: …` structure consistently.
-- It accurately catches obvious findings (sternotomy wires, patient rotation, mild cardiomegaly) but under-calls subtle ones; default verdict is "No acute cardiopulmonary process."
-- CLIP retrieval surfaces structurally similar X-rays (most CXRs look broadly similar), so its retrieved reports often share boilerplate even when patient-specific findings differ. ROUGE-L sees through this; BERTScore less so (similar vocabulary).
-- ColPali retrieval similarities are well-separated in score, but the questions are too generic for top-3 to land on the specific gold patient. Both retrievers fail Recall@3 ≈ symmetrically.
+**MiniLM-L6 narrowly beats ColPali v1.3** on Recall@3 (0.133 vs 0.000), strict-correct judge accuracy (46.7% vs 40.0%), and end-to-end latency (6.4× faster). ColPali pulls ahead on lenient "correct + partial" (60% vs 53%) by producing more hedged answers. At n=15 the gap is within sampling noise, but the direction is consistent across three independent measures and the latency penalty for ColPali is real.
+
+### Qualitative observations
+- **MedGemma's reports** follow the requested `FINDINGS: … IMPRESSION: …` structure consistently across all 30 test images. It catches obvious findings (sternotomy wires, patient rotation, mild cardiomegaly) but under-calls subtle ones; default verdict is "No acute cardiopulmonary process."
+- **CLIP retrieval** surfaces structurally similar X-rays (most CXRs look broadly similar), so its retrieved reports often share boilerplate even when patient-specific findings differ. ROUGE-L sees through this (-23% gap); BERTScore does not (similar vocabulary in both).
+- **ColPali's rendered-page strategy is the wrong tool for this corpus.** ColPali was trained on real document scans with rich layout (PDFs, tables, charts). Our reports are short clinical paragraphs rendered as plain DejaVu Sans on a white canvas — there's no layout signal to exploit. The model's multi-vector representation also costs ~6× the latency of MiniLM with no observable retrieval benefit here.
+- **MiniLM beats ColPali on retrieval and downstream answer accuracy** precisely because clinical text-to-text similarity is what the task is actually about, and that's what MiniLM was trained for.
+- **Recall@3 is structurally low (≤ 13%)** for both retrievers because the auto-generated QA questions are generic ("Is there pneumonia?", "Is there a pleural effusion?") with no patient-specific anchor. The retrievers do their job correctly given the inputs; the limitation is in the question generation, not the retrievers. Despite low retrieval recall, judge accuracy lands at 40–47% because generic clinical questions often have answers consistent across many reports in the corpus.
 
 ---
 
