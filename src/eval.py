@@ -248,10 +248,11 @@ def _judge_qa(qa_items: list[dict], save_path: Path) -> list[dict]:
                 continue
             prompt = JUDGE_PROMPT.format(question=q, predicted=m["answer"], gold=gold)
             try:
-                # 256 tokens: MedGemma 1.5's thinking preamble routinely takes
-                # 100-150 tokens before any VERDICT line. 128 was too tight;
-                # ~83% unparseable on the first full run.
-                raw = medgemma.generate(None, prompt, max_new_tokens=256)
+                # 512 tokens: ColPali's RAG answers carry their own thinking
+                # preamble inline, so the judge needs to consume that AND emit
+                # its own VERDICT line. 256 was enough for short MiniLM answers
+                # but left 40% of ColPali judges unparseable.
+                raw = medgemma.generate(None, prompt, max_new_tokens=512)
             except Exception as e:
                 m["judge"] = {"error": str(e)}
                 continue
