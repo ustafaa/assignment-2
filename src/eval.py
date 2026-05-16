@@ -248,9 +248,10 @@ def _judge_qa(qa_items: list[dict], save_path: Path) -> list[dict]:
                 continue
             prompt = JUDGE_PROMPT.format(question=q, predicted=m["answer"], gold=gold)
             try:
-                # 128 tokens: room for MedGemma thinking-mode preamble + VERDICT line.
-                # Short anyway; doesn't materially change total judge runtime.
-                raw = medgemma.generate(None, prompt, max_new_tokens=128)
+                # 256 tokens: MedGemma 1.5's thinking preamble routinely takes
+                # 100-150 tokens before any VERDICT line. 128 was too tight;
+                # ~83% unparseable on the first full run.
+                raw = medgemma.generate(None, prompt, max_new_tokens=256)
             except Exception as e:
                 m["judge"] = {"error": str(e)}
                 continue
@@ -382,6 +383,9 @@ def main() -> None:
     ap.add_argument("--skip-judge", action="store_true")
     ap.add_argument("--limit-report", type=int, default=None)
     ap.add_argument("--limit-qa", type=int, default=None)
+    ap.add_argument("--judge-only", action="store_true", dest="judge_only",
+                    help="re-run ONLY the LLM judge on saved qa items in "
+                         "comparison.json; skip retrieval + report entirely")
     args = ap.parse_args()
 
     cfg = _load_config()
@@ -396,6 +400,40 @@ def main() -> None:
             "eval": cfg["eval"],
         },
     }
+
+    # Carry over existing report/qa item-level data so skip flags don't drop
+    # them from the regenerated markdown.
+    if json_out.exists():
+        try:
+            with open(json_out, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+            for key in ("report_mode", "qa_mode"):
+                if key in existing:
+                    comparison[key] = existing[key]
+            log.info("Loaded existing comparison from %s", json_out)
+        except Exception as e:
+            log.warning("Could not load existing comparison: %s", e)
+
+    # --judge-only path: replay judge on saved answers, no models for retrieval.
+    if args.judge_only:
+        qa_items = comparison.get("qa_mode", {}).get("items", [])
+        if not qa_items:
+            log.error("No qa_mode.items in %s to rejudge.", json_out)
+            sys.exit(1)
+        log.info("Rejudging %d qa items.", len(qa_items))
+        for rec in qa_items:
+            for key in ("text", "colpali"):
+                if isinstance(rec.get(key), dict):
+                    rec[key].pop("judge", None)
+        qa_items = _judge_qa(qa_items, json_out)
+        qa_metrics = _compute_qa_metrics(qa_items)
+        comparison["qa_mode"] = {"items": qa_items, "metrics": qa_metrics}
+        _save_partial(json_out, comparison)
+        log.info("Writing Markdown summary -> %s", md_out)
+        _write_markdown(comparison, md_out)
+        log.info("Done. JSON: %s", json_out)
+        log.info("       MD : %s", md_out)
+        return
 
     if not args.skip_report:
         log.info("=== Report mode scoring ===")
